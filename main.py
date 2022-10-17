@@ -4,6 +4,7 @@ import os, pathlib
 
 table = image_convert.output
 dump_path = pathlib.Path(__file__).parent.absolute()/'dump'
+if not dump_path.exists(): dump_path.mkdir()
 
 SOURCE_POS = numpy.array([0.0, 0.0, 0.0]) # change this
 CANVAS_POS = numpy.array([0.0, 0.0, 0.0])
@@ -62,20 +63,24 @@ def iterate(offset, delta_x, delta_y, main_path, folder_path):
             if not cell: continue
             pos = (offset + delta_y * row_index + delta_x * col_index) * PIXEL_DIFF
             text = command(pos, time)
-            main_script.write(text)
+            main_script.write(text + "\n")
     
     main_script.close()
 
 def make_folder(version:int = 0):
-    try:
-        folder_name = 'foo' + str(version)
-        pathlib.Path(dump_path/folder_name).mkdir()
-        pathlib.Path(dump_path/folder_name/'arrow_commands').mkdir()
-        main_path = dump_path/folder_name/'main.mcfunction'
-        folder_path = dump_path/folder_name/'arrow_commands'
+    mainfolder_name = 'foo' + str(version)
+    mainfolder_path = dump_path/mainfolder_name
+
+    if not mainfolder_path.exists(): 
+        mainfolder_path.mkdir()
+        main_path = mainfolder_path/'main.mcfunction'
+        folder_path = mainfolder_path/'arrow_commands'
+        folder_path.mkdir()
+        
         return main_path, folder_path
-    except:
-        make_folder(version + 1)
+    else:
+        return make_folder(version + 1)
+
 
 def main():
     offset, delta_x, delta_y = components()
