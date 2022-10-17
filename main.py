@@ -43,3 +43,4 @@ def command(target:list, time:int) -> str:
 for row_index, row in enumerate(table):
     for col_index, cell in enumerate(table):
         if not cell: continue
+        print((row_index, col_index))
