@@ -1,54 +1,45 @@
-#!/usr/bin/env python3
-import argparse
-import math
-from PIL import Image
+import numpy
+import image_convert
 
-parser = argparse.ArgumentParser(description='Converts images to dotted ASCII art')
-parser.add_argument('image', metavar='IMAGE', type=str, help='the image to convert')
-parser.add_argument('--threshold', '-t', type=int, default=90, help='the lightness threshold for writing a dot')
-parser.add_argument('--scale', '-s', type=float, default=1.0, help='the scale factor before conversion')
-parser.add_argument('--invert', '-i', action='store_true', help='whether or not to invert the output (turn white to black and vice versa)')
+table = image_convert.output
 
-args = parser.parse_args()
-image_file_name = args.image
-THRESHOLD = args.threshold
-SCALE = args.scale
-INVERT = args.invert
+SOURCE_POS = numpy.array([0.0, 0.0, 0.0]) # change this
+CANVAS_POS = numpy.array([0.0, 0.0, 0.0])
 
-def gray_value(r: int, g: int, b: int) -> int:
-    return int((r + g + b) / 3)
+PIXEL_DIFF = 0.1 # distance between arrows
+LIMIT = 20 # number of commands per mcfunction
 
-def get_character_for_location(size, pixels, x, y) -> chr:
-    if x >= size[0] or y >= size[1]:
-        gray = 0
-    else:
-        try:
-            r, g, b = pixels[x, y]
-        except:
-            r, g, b, _ = pixels[x, y]
-        gray = gray_value(r, g, b)
+ACCEL = 0.05
+DRAG = 0.01
 
-    if INVERT:
-        return '#' if gray < THRESHOLD else ' '
-    else:
-        return ' ' if gray < THRESHOLD else '#'
+def ypos_to_motion(y_pos:float, time:int) -> float:
+    return (DRAG*y_pos + ACCEL*time)/(1 - (1 - DRAG)**time) - ACCEL/DRAG
 
-image = Image.open(image_file_name)
+def xzpos_to_motion(xz_pos:float, time:int) -> float:
+    return xz_pos*(DRAG)/(1 - (1 - DRAG)**time)
 
-width, height = image.size
-image.thumbnail((width * SCALE, height * SCALE), Image.ANTIALIAS)
-pixels = image.load()
+def target_to_motion(target:list, time:int) -> list:
+    relative = target - SOURCE_POS
+    
+    motion = numpy.array([
+        xzpos_to_motion(relative[0], time),
+        ypos_to_motion(relative[1], time),
+        xzpos_to_motion(relative[2], time)
+    ])
+    return motion
 
-width = width * SCALE
-height = height * SCALE
-output_width = math.ceil(width)
-output_height = math.ceil(height)
+def command(target:list, time:int) -> str:
 
-output = [[' ' for _ in range(0, output_width)] for _ in range(0, output_height)]
+    motion = target_to_motion(target, time)
 
-for x in range(0, output_width):
-    for y in range(0, output_height):
-        output[y][x] = get_character_for_location(image.size, pixels, x, y)
+    return (
+        'summon minecraft:falling_block ' 
+        + str(SOURCE_POS[0]) + ' ' + str(SOURCE_POS[1]) + ' ' + str(SOURCE_POS[2]) + ' '
+        + '{Time:1, BlockState:{Name:"minecraft:lantern"}, Motion:['
+        + str(motion[0]) + 'd, ' + str(motion[1]) + 'd, ' + str(motion[2]) + 'd'
+        + ']}'
+    )
 
-for x in range(0, len(output)):
-    print(''.join(output[x]))
+for row_index, row in enumerate(table):
+    for col_index, cell in enumerate(table):
+        if not cell: continue
