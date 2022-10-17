@@ -1,7 +1,9 @@
 import numpy
 import image_convert
+import os, pathlib
 
 table = image_convert.output
+dump_path = pathlib.Path(__file__).parent.absolute()/'dump'
 
 SOURCE_POS = numpy.array([0.0, 0.0, 0.0]) # change this
 CANVAS_POS = numpy.array([0.0, 0.0, 0.0])
@@ -28,7 +30,7 @@ def target_to_motion(target:list, time:int) -> list:
     ])
     return motion
 
-def command(target:list, time:int) -> str:
+def command(target, time):
 
     motion = target_to_motion(target, time)
 
@@ -40,7 +42,44 @@ def command(target:list, time:int) -> str:
         + ']}'
     )
 
-for row_index, row in enumerate(table):
-    for col_index, cell in enumerate(table):
-        if not cell: continue
-        print((row_index, col_index))
+def components():
+    source_to_target = CANVAS_POS - SOURCE_POS
+    mag = numpy.linalg.norm(source_to_target)
+    if mag == 0:
+        delta_y = numpy.array([0.0, 0.0, 1.0])
+    else:
+        delta_y = numpy.array([source_to_target[0], 0.0, source_to_target[2]]) / mag * -1
+    delta_x = numpy.array([delta_y[2] * -1, 0.0, delta_y[0]])
+    offset = (delta_y * (len(table) - 1) + delta_x * (len(table[0]) - 1)) * -1 / 2
+    return offset, delta_x, delta_y
+
+def iterate(offset, delta_x, delta_y, main_path, folder_path):
+    time = 20
+    main_script = open(main_path, 'a')
+
+    for row_index, row in enumerate(table):
+        for col_index, cell in enumerate(row):
+            if not cell: continue
+            pos = (offset + delta_y * row_index + delta_x * col_index) * PIXEL_DIFF
+            text = command(pos, time)
+            main_script.write(text)
+    
+    main_script.close()
+
+def make_folder(version:int = 0):
+    try:
+        folder_name = 'foo' + str(version)
+        pathlib.Path(dump_path/folder_name).mkdir()
+        pathlib.Path(dump_path/folder_name/'arrow_commands').mkdir()
+        main_path = dump_path/folder_name/'main.mcfunction'
+        folder_path = dump_path/folder_name/'arrow_commands'
+        return main_path, folder_path
+    except:
+        make_folder(version + 1)
+
+def main():
+    offset, delta_x, delta_y = components()
+    main_path, folder_path = make_folder()
+    iterate(offset, delta_x, delta_y, main_path, folder_path)
+
+main()
